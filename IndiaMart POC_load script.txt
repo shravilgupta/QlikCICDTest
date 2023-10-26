@@ -1,0 +1,201 @@
+///$tab Main
+SET ThousandSep=',';
+SET DecimalSep='.';
+SET MoneyThousandSep=',';
+SET MoneyDecimalSep='.';
+SET MoneyFormat='₹ #,##0.00;-₹ #,##0.00';
+SET TimeFormat='h:mm:ss TT';
+SET DateFormat='DD/MM/YYYY';
+SET TimestampFormat='DD/MM/YYYY h:mm:ss[.fff] TT';
+SET FirstWeekDay=6;
+SET BrokenWeeks=1;
+SET ReferenceDay=0;
+SET FirstMonthOfYear=1;
+SET CollationLocale='en-IN';
+SET CreateSearchIndexOnReload=1;
+SET MonthNames='Jan;Feb;Mar;Apr;May;Jun;Jul;Aug;Sep;Oct;Nov;Dec';
+SET LongMonthNames='January;February;March;April;May;June;July;August;September;October;November;December';
+SET DayNames='Mon;Tue;Wed;Thu;Fri;Sat;Sun';
+SET LongDayNames='Monday;Tuesday;Wednesday;Thursday;Friday;Saturday;Sunday';
+SET NumericalAbbreviation='3:k;6:M;9:G;12:T;15:P;18:E;21:Z;24:Y;-3:m;-6:μ;-9:n;-12:p;-15:f;-18:a;-21:z;-24:y';
+
+///$tab Data Model
+[c2c_records]:
+LOAD
+    c2c_record_id,
+    c2c_modid,
+    c2c_caller_glusr_id,
+    //c2c_caller_country_iso,
+    c2c_receiver_glusr_id as GLUSERID_c2c,
+    c2c_number_type,
+    c2c_call_time,
+    date(c2c_call_time) as date,
+    c2c_page_type
+    //modreftyp,
+   // modrefid,
+    //call_duration,
+    //c2c_smartphone,
+   // c2c_click_at
+FROM [lib://DataFiles/c2c_records_Mar.qvd]
+(qvd);
+
+pns_call_all_records_arch:
+LOAD
+    pns_call_record_id,
+    pns_call_record_date,
+    Date(pns_call_record_date) as date,
+    pns_call_record_started_at,
+//     pns_call_record_ended_at,
+//     pns_call_duration,
+    pns_call_status,
+    pns_call_receiver_glusr_id as GLUSERID,
+//     pns_call_caller_circle,
+//     pns_call_vendor_uniqueid,
+//     pns_call_read_status,
+//     pns_call_patch_duration,
+//     pns_call_caller_glusr_id,
+//     pns_custtype_weight,
+//     pns_custtype_id,
+//     pns_call_caller_cntry_iso,
+//     dtmf_blacklist_status,
+//     pns_call_ring_duration,
+//     pns_call_patch_time,
+//     pns_call_patch_cc_status,
+//     pns_call_patch_vendor_status,
+//     pns_call_center_duration,
+//     pns_call_vendor_type,
+//     pns_call_standard_transfertime,
+//     pns_call_disconnect_by_vendor,
+//     pns_call_disconnect_by_cc,
+//     pns_call_caller_cntry_isd_code,
+//     pns_call_api_response_code,
+//     pns_call_api_hit_time,
+//     pns_call_api_response_time,
+    pns_call_status_reason_code,
+//     pns_call_rev_lookup_source,
+    fk_pns_vendor_id as VENDORID
+FROM [lib://DataFiles/pns_call_all_records_arch_Mar.qvd]
+(qvd);
+
+Concatenate
+LOAD
+    pns_call_record_id,
+    Date(pns_call_record_date) as date,
+    pns_call_record_started_at,
+   // pns_call_record_ended_at,
+   // pns_call_duration,
+    pns_call_status,
+    pns_call_receiver_glusr_id as GLUSERID,
+//     pns_call_caller_circle,
+//     pns_call_caller_area,
+//     pns_call_vendor_uniqueid,
+//     pns_call_read_status,
+//     pns_call_patch_duration,
+//     pns_call_isindian,
+//     pns_call_caller_glusr_id,
+//     pns_custtype_weight,
+//     pns_custtype_id,
+//     pns_call_caller_cntry_iso,
+//     pns_call_transfer_flag,
+//     dtmf_blacklist_status,
+    fk_pns_vendor_id as VENDORID,
+    fk_eto_ofr_display_id
+FROM [lib://DataFiles/PNS_CALL_RECORDS_Mar.qvd]
+(qvd);
+
+left join(pns_call_all_records_arch)
+PNS_VENDOR_MASTER:
+LOAD
+    pns_vendor_id as VENDORID,
+    pns_vendor_name,
+    pns_vendor_code as VENDORTYPE,
+    pns_vendor_is_active
+FROM [lib://DataFiles/PNS_VENDOR_MASTER.qvd]
+(qvd);
+
+[GL_GSM_MASTER]:
+LOAD
+    FLAG_IS_AVAILABLE,
+    GL_GSM_VENDOR_TYPE as VENDORTYPE
+FROM [lib://DataFiles/GL_GSM_MASTER.qvd]
+(qvd);
+
+left join (pns_call_all_records_arch)
+[glusr_usr]:
+LOAD
+    glusr_usr_id as GLUSERID,
+    glusr_usr_custtype_name as CUSTYPENAME
+FROM [lib://DataFiles/glusr_usr.qvd]
+(qvd);
+
+
+[custtype]:
+LOAD
+    CUSTTYPE_ID,
+    CUSTTYPE_NAME as CUSTYPENAME
+FROM [lib://DataFiles/custtype.qvd]
+(qvd);
+
+//exit script;
+
+
+
+
+// exit script;
+
+
+
+///$tab Mapping
+Left Join (pns_call_all_records_arch)
+Mapping:
+LOAD
+    Response_status as pns_call_status_reason_code,
+    Response_reason,
+    "Call status",
+    "disposition type"
+FROM [lib://DataFiles/QLIK POC SAMPLE REPORTS  (2).xlsx]
+(ooxml, embedded labels, table is [Reason Code]);
+
+
+///$tab Bridge Calendar
+Bridge_Calendar:
+
+Load Distinct 
+// GLUSERID,
+FLOOR(DATE(c2c_call_time,'DD/MM/YYYY')) as date
+Resident [c2c_records];
+
+Concatenate
+
+LOAD Distinct
+floor(Date(pns_call_record_date,'DD/MM/YYYY')) as date
+Resident pns_call_all_records_arch;
+///$tab Calendar
+[autoCalendar]: 
+  DECLARE FIELD DEFINITION Tagged ('$date')
+FIELDS
+  Dual(Year($1), YearStart($1)) AS [Year] Tagged ('$axis', '$year'),
+  Dual('Q'&Num(Ceil(Num(Month($1))/3)),Num(Ceil(NUM(Month($1))/3),00)) AS [Quarter] Tagged ('$quarter', '$cyclic'),
+  Dual(Year($1)&'-Q'&Num(Ceil(Num(Month($1))/3)),QuarterStart($1)) AS [YearQuarter] Tagged ('$yearquarter', '$qualified'),
+  Dual('Q'&Num(Ceil(Num(Month($1))/3)),QuarterStart($1)) AS [_YearQuarter] Tagged ('$yearquarter', '$hidden', '$simplified'),
+  Month($1) AS [Month] Tagged ('$month', '$cyclic'),
+  Dual(Year($1)&'-'&Month($1), monthstart($1)) AS [YearMonth] Tagged ('$axis', '$yearmonth', '$qualified'),
+  Dual(Month($1), monthstart($1)) AS [_YearMonth] Tagged ('$axis', '$yearmonth', '$simplified', '$hidden'),
+  Dual('W'&Num(Week($1),00), Num(Week($1),00)) AS [Week] Tagged ('$weeknumber', '$cyclic'),
+  Date(Floor($1)) AS [Date] Tagged ('$axis', '$date', '$qualified'),
+  Date(Floor($1), 'D') AS [_Date] Tagged ('$axis', '$date', '$hidden', '$simplified'),
+  If (DayNumberOfYear($1) <= DayNumberOfYear(Today()), 1, 0) AS [InYTD] ,
+  Year(Today())-Year($1) AS [YearsAgo] ,
+  If (DayNumberOfQuarter($1) <= DayNumberOfQuarter(Today()),1,0) AS [InQTD] ,
+  4*Year(Today())+Ceil(Month(Today())/3)-4*Year($1)-Ceil(Month($1)/3) AS [QuartersAgo] ,
+  Ceil(Month(Today())/3)-Ceil(Month($1)/3) AS [QuarterRelNo] ,
+  If(Day($1)<=Day(Today()),1,0) AS [InMTD] ,
+  12*Year(Today())+Month(Today())-12*Year($1)-Month($1) AS [MonthsAgo] ,
+  Month(Today())-Month($1) AS [MonthRelNo] ,
+  If(WeekDay($1)<=WeekDay(Today()),1,0) AS [InWTD] ,
+  (WeekStart(Today())-WeekStart($1))/7 AS [WeeksAgo] ,
+  Week(Today())-Week($1) AS [WeekRelNo] ;
+
+DERIVE FIELDS FROM FIELDS [date] USING [autoCalendar] ;
+
+exit script;
